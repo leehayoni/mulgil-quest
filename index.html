@@ -49,6 +49,16 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 #menuA button:not(:disabled):hover,#menuA button:not(:disabled):active{background:var(--gold);color:#2a1e08}
 #menuA button:disabled{opacity:.35}
 #menuA button small{font-size:11px;font-weight:500;opacity:.7;margin-left:4px}
+#party{position:fixed;left:max(10px,env(safe-area-inset-left));top:64px;display:flex;flex-direction:column;gap:5px;z-index:10}
+#party button{position:relative;width:46px;height:46px;border-radius:6px;border:2px solid var(--gold2);background:#2c2a66;padding:0;overflow:hidden}
+#party button canvas{width:100%;height:100%;display:block}
+#party button.sel{border-color:#ffe07a;box-shadow:0 0 0 2px #ffe07a}
+#party button.done{opacity:.45}
+#party button.dead{opacity:.2;filter:grayscale(1)}
+#party button i{position:absolute;left:2px;right:2px;bottom:2px;height:4px;background:#0e0c24;border-radius:2px;overflow:hidden}
+#party button i b{display:block;height:100%;background:#5ee07a}
+@media (max-height:520px){#party{top:56px;gap:4px}#party button{width:38px;height:38px}#info{padding:6px 10px 6px 6px;min-width:0;max-width:46vw}#pf{width:42px;height:42px}#info b{font-size:15px}#iStat{font-size:10px;line-height:1.35}.hp{width:110px;height:6px;margin:3px 0 1px}#iHpT{font-size:10px}#menuA button{padding:7px 12px;font-size:14px}#msg{font-size:13px;padding:6px 11px}}
+#menuA button .tg{display:block;font-size:11px;font-weight:500;opacity:.75}
 #banner{position:fixed;left:0;right:0;top:38%;text-align:center;z-index:12;pointer-events:none;opacity:0;transform:translateX(-30px);transition:all .35s}
 #banner.on{opacity:1;transform:none}
 #banner span{display:inline-block;font-family:'Jua';font-size:34px;padding:8px 40px;background:linear-gradient(90deg,rgba(28,24,72,0),rgba(28,24,72,.92) 20%,rgba(28,24,72,.92) 80%,rgba(28,24,72,0));color:#fff;text-shadow:0 2px 0 #000}
@@ -101,6 +111,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
   <div id="turn" class="frame"><b id="tTurn">1턴</b><span id="tGoal"></span><button id="bEnd">턴 종료</button><button id="bQuit">✕</button></div>
   <div id="info" class="frame hide"><canvas id="pf" width="120" height="120"></canvas><div><div><b id="iName"></b><small id="iRole"></small></div><div class="hp" id="iHpBar"><i id="iHp"></i></div><span id="iHpT"></span><div id="iStat"></div></div></div>
   <div id="menuA" class="frame hide"></div>
+  <div id="party"></div>
   <div id="banner"><span id="bannerT"></span></div>
 </div>
 
@@ -290,6 +301,7 @@ const SPEAK={lian:'리안',doyun:'도윤',sea:'세아',eunseok:'은석',ttori:'�
 
 /* ---------------- canvas ---------------- */
 const cv=$('cv'),ctx=cv.getContext('2d');
+const TOUCH=matchMedia('(pointer:coarse)').matches;
 let SW=0,SH=0,DPR=1,TW=64,TH=32,HZ=19;const cam={x:0,y:0};
 function resize(){DPR=Math.min(2,window.devicePixelRatio||1);SW=innerWidth;SH=innerHeight;cv.width=Math.round(SW*DPR);cv.height=Math.round(SH*DPR);cv.style.width=SW+'px';cv.style.height=SH+'px';if(GS)fitMap()}
 addEventListener('resize',resize);
@@ -350,7 +362,7 @@ function fitMap(){
  let availW=SW,offX=0,availH=SH,offY=0;
  if(GS.title){if(SW>SH){availW=SW-Math.min(400,SW)*.85;}else{availH=SH*.42}}
  const twW=(availW*.94)/(n/2),twH=(availH*.9)/(n/4+mh*.3+1.3);
- TW=clamp(Math.min(twW,twH),GS.title?30:54,104);TH=TW/2;HZ=TW*.3;
+ TW=clamp(Math.min(twW,twH),GS.title?30:(TOUCH?66:54),110);TH=TW/2;HZ=TW*.3;
  const minX=-GS.rows*TW/2,maxX=GS.cols*TW/2,minY=-mh*HZ-TW*1.15,maxY=n*TH/2+HZ*.6;
  cam.x=offX+availW/2-(minX+maxX)/2;cam.y=offY+availH/2-(minY+maxY)/2;
  GS.bounds={minX,maxX,minY,maxY};
@@ -765,16 +777,32 @@ function refresh(){
  else if(GS.mode==='target')setMsg(GS.tkind==='heal'?'회복할 동료를 고르세요':'공격할 대상을 고르세요');
  else if(!u.moved)setMsg('이동할 블록을 고르세요');
  else setMsg('행동을 고르세요');
- renderMenu();
+ renderMenu();renderParty();
  $('tTurn').textContent=`${GS.turn}턴`;$('tGoal').textContent=GS.st.goalTxt+(GS.st.limit?` · ${GS.st.limit}턴까지`:'');
  $('bEnd').disabled=GS.phase!=='player'||GS.busy||GS.over;
 }
+function renderParty(){
+ const box=$('party');if(!GS||GS.title||MODE!=='battle'){box.innerHTML='';return}
+ const hs=GS.units.filter(u=>u.team==='hero');
+ if(box._gs!==GS||box.childElementCount!==hs.length){box._gs=GS;box.innerHTML='';for(const h of hs){const b=document.createElement('button');const c=document.createElement('canvas');c.width=92;c.height=92;b.appendChild(c);const i=document.createElement('i');i.appendChild(document.createElement('b'));b.appendChild(i);drawPortrait(c,h.k);
+  b.onclick=e=>{e.stopPropagation();ac();if(!h.alive)return;if(GS.phase==='player'&&!GS.busy&&!GS.over&&!h.done&&h!==GS.sel){selectUnit(h)}else showInfo(h);focusUnit(h)};box.appendChild(b)}}
+ hs.forEach((h,j)=>{const b=box.children[j];b.className=(h===GS.sel?'sel ':'')+(!h.alive?'dead':h.done&&GS.phase==='player'?'done':'');b.querySelector('i b').style.width=(h.hp/h.maxhp*100)+'%'});
+}
+function focusUnit(u,force){const p=iso(u.c,u.r,H(u.c,u.r));const x=p.x+cam.x,y=p.y+cam.y;const mx=SW*.18,my=SH*.22;if(!force&&x>mx&&x<SW-mx&&y>my&&y<SH-my)return Promise.resolve();
+ const tx=SW/2-p.x,ty=SH*.48-p.y,fx0=cam.x,fy0=cam.y;return tween(.28,k=>{const e=k*(2-k);cam.x=lerp(fx0,tx,e);cam.y=lerp(fy0,ty,e);clampCam()})}
 function renderMenu(){
  const m=$('menuA'),u=GS.sel;
  if(!u||GS.phase!=='player'||GS.busy||GS.over){m.classList.add('hide');return}
  m.classList.remove('hide');m.innerHTML='';
  const add=(label,fn,ok=true,sub)=>{const b=document.createElement('button');b.innerHTML=label+(sub?`<small>${sub}</small>`:'');b.disabled=!ok;b.onclick=e=>{e.stopPropagation();ac();fn()};m.appendChild(b)};
- if(GS.mode==='target'){add('취소',()=>{GS.mode='move';refresh()});return}
+ if(GS.mode==='target'){
+  for(const tg of GS.targets.slice(0,6)){let info='';
+   if(GS.tkind==='heal')info=`HP ${tg.hp}/${tg.maxhp} → +${10+heroLv()*2}`;
+   else if(GS.tkind==='stun')info=`HP ${tg.hp} · 기절시키기`;
+   else{const d=GS.tkind==='aoe'?calcDmg(u,tg):calcDmg(u,tg);info=`HP ${tg.hp} → -${d}${d>=tg.hp?' 처치!':''}`}
+   const b=document.createElement('button');b.innerHTML=`${tg.name}<span class="tg">${info}</span>`;b.onclick=e=>{e.stopPropagation();ac();execTarget(tg)};
+   b.onpointerenter=()=>{GS.peek=tg};b.onpointerleave=()=>{GS.peek=null};m.appendChild(b)}
+  add('취소',()=>{GS.mode='move';refresh()});return}
  add('공격',()=>enterTarget('atk'),targetsFor(u,'atk').length>0);
  add(u.skill.name,()=>useSkill(u),skillOK(u),u.cd?`${u.cd}턴`:'');
  add('대기',()=>finishUnit(u));
@@ -782,7 +810,7 @@ function renderMenu(){
 }
 function selectUnit(u){
  if(GS.sel&&GS.sel!==u&&GS.sel.moved&&!GS.sel.done){GS.sel.done=true}
- GS.sel=u;GS.mode='move';GS.reach=u.moved?null:reachable(u);GS.origin={c:u.c,r:u.r,dir:u.dir,back:u.back};SFX.sel();showInfo(u);refresh();
+ GS.sel=u;GS.mode='move';GS.reach=u.moved?null:reachable(u);GS.origin={c:u.c,r:u.r,dir:u.dir,back:u.back};SFX.sel();showInfo(u);refresh();focusUnit(u);
 }
 function deselect(){GS.sel=null;GS.reach=null;GS.mode='move';refresh()}
 function undoMove(u){const o=GS.origin;u.c=u.vc=o.c;u.r=u.vr=o.r;u.vh=H(o.c,o.r);u.dir=o.dir;u.back=o.back;u.moved=false;GS.reach=reachable(u);GS.mode='move';refresh()}
@@ -826,12 +854,16 @@ async function moveSel(v){
  await moveAlong(u,path);u.moved=true;GS.reach=null;GS.busy=false;
  if(checkEnd())return;refresh();showInfo(u);
 }
-async function onTap(t){
+function nearestOf(list,sx,sy,maxR){let best=null,bd=1e9;for(const o of list){const p=iso(o.c,o.r,H(o.c,o.r));const x=p.x+cam.x,y=p.y+cam.y-TH*.1;const d=Math.hypot(x-sx,(y-sy)*1.6);if(d<bd){bd=d;best=o}}return bd<=maxR?best:null}
+async function onTap(t,sx,sy){
  if(!GS||GS.title)return;
  const u=t?unitAt(t.c,t.r):null;
  if(GS.phase!=='player'||GS.busy||GS.over){if(u)showInfo(u);return}
+ if(GS.sel&&!GS.sel.moved&&GS.reach&&sx!=null&&GS.mode!=='target'){const tt=pickTile(sx,sy,true);const rv=tt&&GS.reach.get(key(tt.c,tt.r));if(rv&&!rv.occupied&&!(rv.c===GS.sel.c&&rv.r===GS.sel.r)){await moveSel(rv);return}}
+ if(GS.sel&&!GS.sel.moved&&GS.reach&&sx!=null&&GS.mode!=='target'){const tu=t?unitAt(t.c,t.r):null;const onReach=t&&GS.reach.get(key(t.c,t.r));if(!(tu&&tu.team==='hero')&&!(onReach&&!onReach.occupied)){const opts=[...GS.reach.values()].filter(v=>!v.occupied&&!(v.c===GS.sel.c&&v.r===GS.sel.r));const v=nearestOf(opts,sx,sy,TW*.6);if(v){await moveSel(v);return}}}
  if(!t){if(GS.sel&&!GS.sel.moved)deselect();return}
- if(GS.mode==='target'){const tg=GS.targets.find(x=>x.c===t.c&&x.r===t.r);if(tg){await execTarget(tg)}else{GS.mode='move';refresh();if(u)showInfo(u)}return}
+ if(GS.mode==='target'&&sx!=null){let tg=t?GS.targets.find(x=>x.c===t.c&&x.r===t.r):null;if(!tg)tg=nearestOf(GS.targets,sx,sy,TW*.95);if(tg){await execTarget(tg);return}}
+ if(GS.mode==='target'){const tg=t?GS.targets.find(x=>x.c===t.c&&x.r===t.r):null;if(tg){await execTarget(tg)}else{GS.mode='move';refresh();if(u)showInfo(u)}return}
  if(u&&u.team==='hero'&&!u.done&&u!==GS.sel){selectUnit(u);return}
  if(GS.sel&&!GS.sel.moved&&GS.reach){const v=GS.reach.get(key(t.c,t.r));if(v&&!v.occupied&&!(v.c===GS.sel.c&&v.r===GS.sel.r)){await moveSel(v);return}}
  if(u){showInfo(u);if(GS.sel&&u.team==='foe'&&!GS.sel.moved){/* peek */}return}
@@ -863,7 +895,7 @@ async function foeTurn(f){
  const reach=reachable(f);let best=null;
  for(const v of reach.values()){if(v.occupied)continue;for(const h of cands){const d=Math.abs(v.c-h.c)+Math.abs(v.r-h.r);if(d<f.rng[0]||d>f.rng[1])continue;
   const dmg=calcDmg(f,h,v.c,v.r);const sc=dmg+(dmg>=h.hp?25:0)-v.d*.1+(f.rng[1]>1?d*1.5:0)-h.hp*.05;if(!best||sc>best.sc)best={v,h,sc}}}
- GS.focus=f;
+ GS.focus=f;await focusUnit(f);
  if(best){if(best.v.c!==f.c||best.v.r!==f.r)await moveAlong(f,pathTo(reach,key(best.v.c,best.v.r)));await sleep(.1);await strike(f,best.h)}
  else{
   let tgt=taunter;if(!tgt){let bd=1e9;for(const h of hs){const d=dist(h,f);if(d<bd){bd=d;tgt=h}}}
@@ -935,7 +967,7 @@ function startStage(i){
  (async()=>{await sleep(.4);await dialog(st.pre);GS.phase='player';refresh();await banner(`1턴 · 아군 차례`);refresh()})();
 }
 function toTitle(){
- MODE='title';$('ui').classList.add('hide');$('ov').classList.add('hide');$('dlg').classList.add('hide');$('title').classList.remove('hide');
+ MODE='title';$('party').innerHTML='';$('ui').classList.add('hide');$('ov').classList.add('hide');$('dlg').classList.add('hide');$('title').classList.remove('hide');
  const st={name:'title',t:["gggtgg","gddddg","gdgggt","tdgggg","gdddgg","ggtggg"],h:["211111","211100","111000","110000","100001","000011"]};
  GS=buildScene(st,true);
  GS.units.push(Object.assign(mkUnit('hero','lian',2,3,0),{dir:1,back:false}),Object.assign(mkUnit('hero','doyun',3,2,0),{dir:1,back:false}),Object.assign(mkUnit('hero','sea',3,4,0),{dir:1,back:false}));
@@ -962,19 +994,26 @@ $('bQuit').onclick=()=>{if($('bQuit').dataset.c){$('bQuit').dataset.c='';$('bQui
 
 /* ---------------- input ---------------- */
 let ptr=null;
-function pickTile(sx,sy){
+function pickTile(sx,sy,tilesOnly){
  const wx=sx-cam.x,wy=sy-cam.y;
- const us=GS.units.filter(u=>u.alive).sort((a,b)=>(b.c+b.r)-(a.c+a.r));
+ const us=tilesOnly?[]:GS.units.filter(u=>u.alive).sort((a,b)=>(b.c+b.r)-(a.c+a.r));
  for(const u of us){const p=iso(u.c,u.r,H(u.c,u.r));if(Math.abs(wx-p.x)<TW*.28&&wy<p.y+TH*.3&&wy>p.y-TW*(uh(u)-.12))return GS.T(u.c,u.r)}
  const ts=GS.tiles.slice().sort((a,b)=>(b.c+b.r)-(a.c+a.r)||b.c-a.c);
  for(const t of ts){const top=t.ty==='r'?t.h+1.4:hv(t);const p=iso(t.c,t.r,top);if(Math.abs(wx-p.x)/(TW/2)+Math.abs(wy-p.y)/(TH/2)<=1)return t}
  return null;
 }
-cv.addEventListener('pointerdown',e=>{ac();ptr={id:e.pointerId,x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,pan:false};try{cv.setPointerCapture(e.pointerId)}catch(err){}});
-cv.addEventListener('pointermove',e=>{if(!ptr||e.pointerId!==ptr.id||!GS)return;const dx=e.clientX-ptr.x,dy=e.clientY-ptr.y;ptr.x=e.clientX;ptr.y=e.clientY;if(!ptr.pan&&Math.hypot(e.clientX-ptr.sx,e.clientY-ptr.sy)>9)ptr.pan=true;if(ptr.pan&&!GS.title){cam.x+=dx;cam.y+=dy;clampCam()}});
-cv.addEventListener('pointerup',e=>{if(!ptr||e.pointerId!==ptr.id)return;const wasPan=ptr.pan;ptr=null;if(!wasPan&&GS&&MODE==='battle'&&$('dlg').classList.contains('hide'))onTap(pickTile(e.clientX,e.clientY))});
-cv.addEventListener('pointercancel',()=>ptr=null);
-cv.addEventListener('wheel',e=>{if(!GS||GS.title)return;e.preventDefault();const f=e.deltaY<0?1.1:1/1.1;const nt=clamp(TW*f,40,140),r=nt/TW;cam.x=e.clientX-(e.clientX-cam.x)*r;cam.y=e.clientY-(e.clientY-cam.y)*r;TW=nt;TH=TW/2;HZ=TW*.3;const n=GS.cols+GS.rows;GS.bounds={minX:-GS.rows*TW/2,maxX:GS.cols*TW/2,minY:-GS.maxH*HZ-TW*1.15,maxY:n*TH/2+HZ*.6};clampCam()},{passive:false});
+const touches=new Map();let pinch=null;
+cv.addEventListener('pointerdown',e=>{ac();touches.set(e.pointerId,{x:e.clientX,y:e.clientY});try{cv.setPointerCapture(e.pointerId)}catch(err){}
+ if(touches.size===2&&GS&&!GS.title){const[a,b]=[...touches.values()];pinch={d:Math.hypot(a.x-b.x,a.y-b.y)};ptr=null;return}
+ if(touches.size===1)ptr={id:e.pointerId,x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,pan:false}});
+cv.addEventListener('pointermove',e=>{if(touches.has(e.pointerId))touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ if(pinch&&touches.size===2){const[a,b]=[...touches.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);if(d>10){zoomAt(d/pinch.d,(a.x+b.x)/2,(a.y+b.y)/2);pinch.d=d}return}
+ if(!ptr||e.pointerId!==ptr.id||!GS)return;const dx=e.clientX-ptr.x,dy=e.clientY-ptr.y;ptr.x=e.clientX;ptr.y=e.clientY;if(!ptr.pan&&Math.hypot(e.clientX-ptr.sx,e.clientY-ptr.sy)>12)ptr.pan=true;if(ptr.pan&&!GS.title){cam.x+=dx;cam.y+=dy;clampCam()}});
+const ptrEnd=e=>{touches.delete(e.pointerId);if(touches.size<2)pinch=null};
+cv.addEventListener('pointerup',e=>{ptrEnd(e);if(!ptr||e.pointerId!==ptr.id)return;const wasPan=ptr.pan;ptr=null;if(!wasPan&&GS&&MODE==='battle'&&$('dlg').classList.contains('hide'))onTap(pickTile(e.clientX,e.clientY),e.clientX,e.clientY)});
+cv.addEventListener('pointercancel',e=>{ptrEnd(e);ptr=null});
+function zoomAt(f,px,py){const nt=clamp(TW*f,40,150),r=nt/TW;cam.x=px-(px-cam.x)*r;cam.y=py-(py-cam.y)*r;TW=nt;TH=TW/2;HZ=TW*.3;const n=GS.cols+GS.rows;GS.bounds={minX:-GS.rows*TW/2,maxX:GS.cols*TW/2,minY:-GS.maxH*HZ-TW*1.15,maxY:n*TH/2+HZ*.6};clampCam()}
+cv.addEventListener('wheel',e=>{if(!GS||GS.title)return;e.preventDefault();zoomAt(e.deltaY<0?1.1:1/1.1,e.clientX,e.clientY)},{passive:false});
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 
 /* ---------------- loop ---------------- */
